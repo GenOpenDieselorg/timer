@@ -1,25 +1,23 @@
-# src/main/resources/config.yml
+# EventAnnouncer/src/main/resources/config.yml
 
-# Strefa czasowa dla wszystkich obliczeń, np. "Europe/Warsaw"
+# Strefa czasowa, w której działa serwer (kluczowe dla poprawnych godzin).
 timezone: "Europe/Warsaw"
 
-# Co ile sekund przełączać bossbary, jeśli w danym dniu jest więcej niż jedno wydarzenie.
+# Czas w sekundach na przełączanie bossbarów, gdy w danym dniu jest więcej niż jedno wydarzenie.
 bossbar_rotation_seconds: 10
 
-# Lista Twoich wydarzeń.
+# --- TWOJE CYKLICZNE WYDARZENIA ---
+# Zdefiniuj regułę raz, a będzie działać na zawsze.
 events:
   powiekszanie_swiatow:
     display_name: "Powiększanie Światów"
-    # HARMONOGRAM CYKLICZNY:
-    # "every [liczba] days from [data_startowa] at [godzina]"
-    # Plugin sam obliczy wszystkie przyszłe daty na podstawie tego wzorca.
+    # REGULA: Co 4 dni, licząc od 5 września. To wszystko, czego plugin potrzebuje.
     schedule: "every 4 days from 2025-09-05 at 20:00"
     bossbar:
       color: GREEN
       style: SOLID
       text: "§a§l{eventName} już dziś o §e§l{time}!"
     announcements:
-      # Czas przed, wiadomość
       - "1 hour: §8[§6!§8] §ePowiększanie światów nastąpi za §c1 godzinę§e!"
       - "30 minutes: §8[§6!§8] §ePrzygotujcie się! Powiększanie światów już za §c30 minut§e!"
       - "5 minutes: §8[§6!§8] §cPowiększanie światów za 5 minut!"
@@ -27,15 +25,14 @@ events:
 
   usuwanie_dzialek:
     display_name: "Usuwanie Działek"
-    # HARMONOGRAM KONKRETNYCH DAT:
-    # "on [data1], [data2], [data3] at [godzina]"
-    # Wydarzenie odbędzie się tylko w podanych dniach.
-    schedule: "on 2025-09-09, 2025-09-13, 2025-09-17, 2025-09-21 at 20:00"
+    # REGULA: Co 4 dni, licząc od 9 września.
+    # Na podstawie Twoich dat (9, 13, 17, 21) plugin rozumie cały cykl.
+    schedule: "every 4 days from 2025-09-09 at 20:00"
     bossbar:
       color: RED
       style: SEGMENTED_10
       text: "§c§l{eventName} już dziś o §e§l{time}!"
     announcements:
-      - "1 hour: §8[§c!§8] §cOstateczne ostrzeżenie! Usuwanie działek nastąpi za §c1 godzinę§c!"
+      - "1 hour: §8[§c!§8] §cOstrzeżenie! Usuwanie działek nastąpi za §c1 godzinę§c!"
       - "15 minutes: §8[§c!§8] §cNieaktywne działki zostaną usunięte za 15 minut!"
       - "0 seconds: §8[§4§l!§8] §4§lSTART! §cRozpoczęto proces usuwania działek!"
