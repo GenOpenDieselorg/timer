@@ -6,10 +6,13 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
 import pl.twojanazwa.eventannouncer.model.ScheduledEvent;
+
+import java.time.Duration;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -17,7 +20,7 @@ import java.util.stream.Collectors;
 public class BossBarManager implements Listener {
     private final EventAnnouncer plugin;
     private final Map<String, BossBar> activeBossBars = new ConcurrentHashMap<>();
-    private List<String> currentEventIds = List.of();
+    private List<ScheduledEvent> currentEvents = List.of();
     private int currentEventIndex = 0;
     private long lastRotationTime = 0;
 
@@ -25,46 +28,70 @@ public class BossBarManager implements Listener {
         this.plugin = plugin;
     }
 
-    public void updateBossBars(List<ScheduledEvent> todaysEvents) {
+    public void updateBossBars(List<ScheduledEvent> todaysEvents, ZonedDateTime now) {
         Set<String> eventIds = todaysEvents.stream().map(ScheduledEvent::id).collect(Collectors.toSet());
 
         if (!activeBossBars.keySet().equals(eventIds)) {
             removeAllBossBars();
             todaysEvents.forEach(this::createBossBar);
         }
-        this.currentEventIds = todaysEvents.stream().map(ScheduledEvent::id).toList();
-        if (currentEventIds.isEmpty()) return;
+        this.currentEvents = todaysEvents;
+        if (currentEvents.isEmpty()) return;
 
-        long now = System.currentTimeMillis();
+        // Rotacja bossbarów, jeśli jest więcej niż 1
         int rotationSeconds = plugin.getConfig().getInt("bossbar_rotation_seconds", 10);
-
-        if (now - lastRotationTime > rotationSeconds * 1000L) {
-            currentEventIndex = (currentEventIndex + 1) % currentEventIds.size();
-            lastRotationTime = now;
+        if (System.currentTimeMillis() - lastRotationTime > rotationSeconds * 1000L) {
+            currentEventIndex = (currentEventIndex + 1) % currentEvents.size();
+            lastRotationTime = System.currentTimeMillis();
         }
-        showCurrentBossBarToAll();
+
+        // Aktualizuj tekst i pokaż odpowiedni bossbar
+        updateAndShowCurrentBossBar(now);
+    }
+    
+    private void updateAndShowCurrentBossBar(ZonedDateTime now) {
+        ScheduledEvent eventToShow = currentEvents.get(currentEventIndex);
+        BossBar barToShow = activeBossBars.get(eventToShow.id());
+        if (barToShow == null) return;
+        
+        // LOGIKA ODLICZANIA
+        ZonedDateTime eventTime = now.toLocalDate().atTime(eventToShow.time()).atZone(now.getZone());
+        Duration timeLeft = Duration.between(now, eventTime);
+
+        String title;
+        if (eventToShow.countdownEnabled() && !timeLeft.isNegative() && timeLeft.compareTo(eventToShow.countdownStartBefore()) <= 0) {
+            // Jesteśmy w okresie odliczania
+            title = eventToShow.getFormattedText(eventToShow.countdownFormat())
+                .replace("{countdown}", formatDuration(timeLeft));
+        } else {
+            // Standardowy tekst
+            title = eventToShow.getFormattedText(eventToShow.bossBarText());
+        }
+        barToShow.setTitle(title);
+
+        // Pokaż graczom
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            activeBossBars.values().forEach(bar -> bar.removePlayer(player));
+            barToShow.addPlayer(player);
+        }
     }
 
-    private void showCurrentBossBarToAll() {
-        if (currentEventIds.isEmpty()) return;
-        String eventIdToShow = currentEventIds.get(currentEventIndex);
-        BossBar barToShow = activeBossBars.get(eventIdToShow);
-
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            for (Map.Entry<String, BossBar> entry : activeBossBars.entrySet()) {
-                if (!entry.getKey().equals(eventIdToShow)) {
-                    entry.getValue().removePlayer(player);
-                }
-            }
-            if (barToShow != null) {
-                barToShow.addPlayer(player);
-            }
+    private String formatDuration(Duration duration) {
+        long seconds = duration.getSeconds();
+        if (seconds < 0) return "0s";
+        long hours = seconds / 3600;
+        long minutes = (seconds % 3600) / 60;
+        long secs = seconds % 60;
+        if (hours > 0) {
+            return String.format("%dh %02dm %02ds", hours, minutes, secs);
+        } else {
+            return String.format("%dm %02ds", minutes, secs);
         }
     }
 
     private void createBossBar(ScheduledEvent event) {
         BossBar bossBar = Bukkit.createBossBar(
-            event.getFormattedBossBarText(),
+            event.getFormattedText(event.bossBarText()),
             event.bossBarColor(),
             event.bossBarStyle()
         );
@@ -73,11 +100,9 @@ public class BossBarManager implements Listener {
     }
 
     public void removeAllBossBars() {
-        for (BossBar bossBar : activeBossBars.values()) {
-            bossBar.removeAll();
-        }
+        activeBossBars.values().forEach(BossBar::removeAll);
         activeBossBars.clear();
-        currentEventIds = List.of();
+        currentEvents = List.of();
         currentEventIndex = 0;
     }
     
@@ -87,9 +112,9 @@ public class BossBarManager implements Listener {
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
-        if (currentEventIds.isEmpty()) return;
-        String eventIdToShow = currentEventIds.get(currentEventIndex);
-        BossBar bar = activeBossBars.get(eventIdToShow);
+        if (currentEvents.isEmpty()) return;
+        ScheduledEvent eventToShow = currentEvents.get(currentEventIndex);
+        BossBar bar = activeBossBars.get(eventToShow.id());
         if (bar != null) {
             bar.addPlayer(event.getPlayer());
         }
