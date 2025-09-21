@@ -48,8 +48,10 @@ public class EventScheduler {
             }
             return;
         }
-
-        bossBarManager.updateBossBars(todaysEvents);
+        
+        // Przekazuj aktualny czas do menedżera bossbarów
+        Bukkit.getScheduler().runTask(plugin, () -> bossBarManager.updateBossBars(todaysEvents, now));
+        
         checkAndSendAnnouncements(now);
     }
 
@@ -72,7 +74,7 @@ public class EventScheduler {
 
                 if (now.isAfter(announcementTime) && !todaysAnnounced.contains(announcementId)) {
                     Bukkit.getScheduler().runTask(plugin, () ->
-                        Bukkit.broadcastMessage(event.getFormattedAnnouncement(announcement.message()))
+                        Bukkit.broadcastMessage(event.getFormattedText(announcement.message()))
                     );
                     todaysAnnounced.add(announcementId);
                 }
