@@ -1,0 +1,38 @@
+name: Build Minecraft Plugin
+
+# Kiedy akcja ma się uruchomić
+on:
+  push:
+    branches: [ "main" ] # Przy push na gałąź main
+  pull_request:
+    branches: [ "main" ] # Przy pull request do gałęzi main
+
+jobs:
+  build:
+    # Uruchom na najnowszej wersji Ubuntu
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Pobierz kod źródłowy z repozytorium
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Skonfiguruj środowisko Java (JDK 21)
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin' # Popularna dystrybucja Javy
+          cache: maven
+
+      # 3. Zbuduj projekt za pomocą Mavena
+      #    Komenda "mvn clean package" skompiluje kod i stworzy plik .jar
+      - name: Build with Maven
+        run: mvn -B package --file pom.xml
+
+      # 4. Zapisz gotowy plik .jar jako artefakt do pobrania
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EventAnnouncer-Plugin # Nazwa artefaktu
+          path: target/*.jar # Ścieżka do pliku, który ma zostać zapisany
