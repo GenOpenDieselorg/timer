@@ -1,22 +1,29 @@
 # EventAnnouncer/src/main/resources/config.yml
 
-# Strefa czasowa, w której działa serwer (kluczowe dla poprawnych godzin).
 timezone: "Europe/Warsaw"
-
-# Czas w sekundach na przełączanie bossbarów, gdy w danym dniu jest więcej niż jedno wydarzenie.
 bossbar_rotation_seconds: 10
 
-# --- TWOJE CYKLICZNE WYDARZENIA ---
-# Zdefiniuj regułę raz, a będzie działać na zawsze.
 events:
   powiekszanie_swiatow:
     display_name: "Powiększanie Światów"
-    # REGULA: Co 4 dni, licząc od 5 września. To wszystko, czego plugin potrzebuje.
     schedule: "every 4 days from 2025-09-05 at 20:00"
     bossbar:
       color: GREEN
       style: SOLID
+      # Tekst wyświetlany, gdy odliczanie NIE jest aktywne.
       text: "§a§l{eventName} już dziś o §e§l{time}!"
+      
+      # NOWA SEKCJA: Odliczanie na bossbarze
+      countdown:
+        # Czy włączyć odliczanie na bossbarze dla tego wydarzenia? (true/false)
+        enabled: true
+        # Na ile przed wydarzeniem ma się rozpocząć odliczanie?
+        # Dostępne jednostki: hours, minutes, seconds
+        start_before: "1 hour" 
+        # Jak ma wyglądać tekst PODCZAS odliczania?
+        # {countdown} zostanie zastąpione przez pozostały czas (np. 59m 45s)
+        format: "§a§l{eventName} rozpocznie się za: §e§l{countdown}"
+
     announcements:
       - "1 hour: §8[§6!§8] §ePowiększanie światów nastąpi za §c1 godzinę§e!"
       - "30 minutes: §8[§6!§8] §ePrzygotujcie się! Powiększanie światów już za §c30 minut§e!"
@@ -25,13 +32,15 @@ events:
 
   usuwanie_dzialek:
     display_name: "Usuwanie Działek"
-    # REGULA: Co 4 dni, licząc od 9 września.
-    # Na podstawie Twoich dat (9, 13, 17, 21) plugin rozumie cały cykl.
     schedule: "every 4 days from 2025-09-09 at 20:00"
     bossbar:
       color: RED
       style: SEGMENTED_10
       text: "§c§l{eventName} już dziś o §e§l{time}!"
+      countdown:
+        enabled: true
+        start_before: "30 minutes"
+        format: "§c§l{eventName} za: §e§l{countdown}"
     announcements:
       - "1 hour: §8[§c!§8] §cOstrzeżenie! Usuwanie działek nastąpi za §c1 godzinę§c!"
       - "15 minutes: §8[§c!§8] §cNieaktywne działki zostaną usunięte za 15 minut!"
