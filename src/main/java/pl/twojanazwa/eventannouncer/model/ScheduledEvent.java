@@ -2,11 +2,11 @@ package pl.twojanazwa.eventannouncer.model;
 
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.time.Duration;
 
 public record ScheduledEvent(
     String id,
@@ -16,9 +16,16 @@ public record ScheduledEvent(
     int everyDays,
     LocalDate startDate,
     List<LocalDate> specificDates,
+
+    // BossBar
     BarColor bossBarColor,
     BarStyle bossBarStyle,
     String bossBarText,
+    boolean countdownEnabled,
+    Duration countdownStartBefore,
+    String countdownFormat,
+
+    // Announcements
     List<Announcement> announcements
 ) {
     public record Announcement(Duration timeBefore, String message) {}
@@ -34,14 +41,10 @@ public record ScheduledEvent(
         };
     }
 
-    public String getFormattedBossBarText() {
-        return bossBarText
+    public String getFormattedText(String text) {
+        return text
             .replace("{eventName}", displayName)
             .replace("{time}", time.toString())
             .replace('&', '§');
-    }
-
-    public String getFormattedAnnouncement(String message) {
-        return message.replace('&', '§');
     }
 }
