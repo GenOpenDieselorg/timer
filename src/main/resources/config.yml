@@ -1,7 +1,8 @@
 # EventAnnouncer/src/main/resources/config.yml
 
 timezone: "Europe/Warsaw"
-bossbar_rotation_seconds: 10
+announcement_start_time: "10:00"
+bossbar_rotation_minutes: 1
 
 events:
   powiekszanie_swiatow:
