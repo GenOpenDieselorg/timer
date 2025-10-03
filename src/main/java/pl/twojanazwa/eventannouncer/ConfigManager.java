@@ -22,7 +22,9 @@ public class ConfigManager {
     private final EventAnnouncer plugin;
     private final List<ScheduledEvent> scheduledEvents = new ArrayList<>();
     private ZoneId timeZone;
-    private int bossBarRotationSeconds;
+    private int bossBarRotationMinutes;
+    private LocalTime announcementStartTime;
+
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
@@ -39,7 +41,9 @@ public class ConfigManager {
         plugin.reloadConfig();
         var config = plugin.getConfig();
         this.timeZone = ZoneId.of(config.getString("timezone", "Europe/Warsaw"));
-        this.bossBarRotationSeconds = config.getInt("bossbar_rotation_seconds", 10);
+        this.bossBarRotationMinutes = config.getInt("bossbar_rotation_minutes", 1);
+        this.announcementStartTime = LocalTime.parse(config.getString("announcement_start_time", "10:00"), TIME_FORMATTER);
+
         ConfigurationSection eventsSection = config.getConfigurationSection("events");
         if (eventsSection == null) return;
         for (String key : eventsSection.getKeys(false)) {
@@ -103,5 +107,6 @@ public class ConfigManager {
 
     public List<ScheduledEvent> getScheduledEvents() { return scheduledEvents; }
     public ZoneId getTimeZone() { return timeZone; }
-    public int getBossBarRotationSeconds() { return bossBarRotationSeconds; }
+    public int getBossBarRotationMinutes() { return bossBarRotationMinutes; }
+    public LocalTime getAnnouncementStartTime() { return announcementStartTime; }
 }
