@@ -39,8 +39,8 @@ public class BossBarManager implements Listener {
         if (currentEvents.isEmpty()) return;
 
         // Rotacja bossbarów, jeśli jest więcej niż 1
-        int rotationSeconds = plugin.getConfig().getInt("bossbar_rotation_seconds", 10);
-        if (System.currentTimeMillis() - lastRotationTime > rotationSeconds * 1000L) {
+        int rotationMinutes = plugin.getConfig().getInt("bossbar_rotation_minutes", 1);
+        if (currentEvents.size() > 1 && System.currentTimeMillis() - lastRotationTime > rotationMinutes * 60 * 1000L) {
             currentEventIndex = (currentEventIndex + 1) % currentEvents.size();
             lastRotationTime = System.currentTimeMillis();
         }
