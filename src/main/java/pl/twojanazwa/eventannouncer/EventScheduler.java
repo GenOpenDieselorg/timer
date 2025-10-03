@@ -42,7 +42,18 @@ public class EventScheduler {
             todaysAnnounced.clear();
         }
 
-        if (todaysEvents.isEmpty()) {
+        if (now.toLocalTime().isBefore(configManager.getAnnouncementStartTime())) {
+            if (bossBarManager.hasActiveBars()) {
+                Bukkit.getScheduler().runTask(plugin, bossBarManager::removeAllBossBars);
+            }
+            return;
+        }
+
+        List<ScheduledEvent> upcomingEvents = todaysEvents.stream()
+                .filter(event -> now.toLocalTime().isBefore(event.time()))
+                .collect(Collectors.toList());
+
+        if (upcomingEvents.isEmpty()) {
             if (bossBarManager.hasActiveBars()) {
                  Bukkit.getScheduler().runTask(plugin, bossBarManager::removeAllBossBars);
             }
@@ -50,9 +61,9 @@ public class EventScheduler {
         }
         
         // Przekazuj aktualny czas do menedżera bossbarów
-        Bukkit.getScheduler().runTask(plugin, () -> bossBarManager.updateBossBars(todaysEvents, now));
+        Bukkit.getScheduler().runTask(plugin, () -> bossBarManager.updateBossBars(upcomingEvents, now));
         
-        checkAndSendAnnouncements(now);
+        checkAndSendAnnouncements(now, upcomingEvents);
     }
 
     private void updateTodaysEvents(LocalDate today) {
@@ -65,8 +76,8 @@ public class EventScheduler {
         }
     }
 
-    private void checkAndSendAnnouncements(ZonedDateTime now) {
-        for (ScheduledEvent event : todaysEvents) {
+    private void checkAndSendAnnouncements(ZonedDateTime now, List<ScheduledEvent> upcomingEvents) {
+        for (ScheduledEvent event : upcomingEvents) {
             ZonedDateTime eventTime = now.toLocalDate().atTime(event.time()).atZone(configManager.getTimeZone());
             for (ScheduledEvent.Announcement announcement : event.announcements()) {
                 ZonedDateTime announcementTime = eventTime.minus(announcement.timeBefore());
