@@ -6,26 +6,27 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import pl.twojanazwa.eventannouncer.model.ScheduledEvent;
 
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 public class BossBarManager implements Listener {
     private final EventAnnouncer plugin;
+    private final PreferenceManager preferenceManager;
     private final Map<String, BossBar> activeBossBars = new ConcurrentHashMap<>();
     private List<ScheduledEvent> currentEvents = List.of();
     private int currentEventIndex = 0;
     private long lastRotationTime = 0;
 
-    public BossBarManager(EventAnnouncer plugin) {
+    public BossBarManager(EventAnnouncer plugin, PreferenceManager preferenceManager) {
         this.plugin = plugin;
+        this.preferenceManager = preferenceManager;
     }
 
     public void updateBossBars(List<ScheduledEvent> todaysEvents, ZonedDateTime now) {
@@ -38,41 +39,38 @@ public class BossBarManager implements Listener {
         this.currentEvents = todaysEvents;
         if (currentEvents.isEmpty()) return;
 
-        // Rotacja bossbarów, jeśli jest więcej niż 1
         int rotationMinutes = plugin.getConfig().getInt("bossbar_rotation_minutes", 1);
         if (currentEvents.size() > 1 && System.currentTimeMillis() - lastRotationTime > rotationMinutes * 60 * 1000L) {
             currentEventIndex = (currentEventIndex + 1) % currentEvents.size();
             lastRotationTime = System.currentTimeMillis();
         }
 
-        // Aktualizuj tekst i pokaż odpowiedni bossbar
         updateAndShowCurrentBossBar(now);
     }
     
     private void updateAndShowCurrentBossBar(ZonedDateTime now) {
+        if (currentEvents.isEmpty()) return;
         ScheduledEvent eventToShow = currentEvents.get(currentEventIndex);
         BossBar barToShow = activeBossBars.get(eventToShow.id());
         if (barToShow == null) return;
         
-        // LOGIKA ODLICZANIA
         ZonedDateTime eventTime = now.toLocalDate().atTime(eventToShow.time()).atZone(now.getZone());
         Duration timeLeft = Duration.between(now, eventTime);
 
         String title;
         if (eventToShow.countdownEnabled() && !timeLeft.isNegative() && timeLeft.compareTo(eventToShow.countdownStartBefore()) <= 0) {
-            // Jesteśmy w okresie odliczania
             title = eventToShow.getFormattedText(eventToShow.countdownFormat())
                 .replace("{countdown}", formatDuration(timeLeft));
         } else {
-            // Standardowy tekst
             title = eventToShow.getFormattedText(eventToShow.bossBarText());
         }
         barToShow.setTitle(title);
 
-        // Pokaż graczom
         for (Player player : Bukkit.getOnlinePlayers()) {
             activeBossBars.values().forEach(bar -> bar.removePlayer(player));
-            barToShow.addPlayer(player);
+            if (preferenceManager.hasAnnouncementsEnabled(player.getUniqueId())) {
+                barToShow.addPlayer(player);
+            }
         }
     }
 
@@ -112,11 +110,17 @@ public class BossBarManager implements Listener {
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
-        if (currentEvents.isEmpty()) return;
+        if (currentEvents.isEmpty() || !preferenceManager.hasAnnouncementsEnabled(event.getPlayer().getUniqueId())) return;
+        
         ScheduledEvent eventToShow = currentEvents.get(currentEventIndex);
         BossBar bar = activeBossBars.get(eventToShow.id());
         if (bar != null) {
             bar.addPlayer(event.getPlayer());
         }
+    }
+
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        activeBossBars.values().forEach(bar -> bar.removePlayer(event.getPlayer()));
     }
 }
