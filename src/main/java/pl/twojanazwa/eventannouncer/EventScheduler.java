@@ -1,6 +1,7 @@
 package pl.twojanazwa.eventannouncer;
 
 import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 import pl.twojanazwa.eventannouncer.model.ScheduledEvent;
 import java.time.LocalDate;
@@ -14,15 +15,17 @@ public class EventScheduler {
     private final EventAnnouncer plugin;
     private final ConfigManager configManager;
     private final BossBarManager bossBarManager;
+    private final PreferenceManager preferenceManager;
     private BukkitTask mainTask;
     private final Set<String> todaysAnnounced = new HashSet<>();
     private List<ScheduledEvent> todaysEvents = List.of();
     private LocalDate lastCheckedDate = null;
 
-    public EventScheduler(EventAnnouncer plugin, ConfigManager configManager, BossBarManager bossBarManager) {
+    public EventScheduler(EventAnnouncer plugin, ConfigManager configManager, BossBarManager bossBarManager, PreferenceManager preferenceManager) {
         this.plugin = plugin;
         this.configManager = configManager;
         this.bossBarManager = bossBarManager;
+        this.preferenceManager = preferenceManager;
     }
 
     public void run() {
@@ -60,7 +63,6 @@ public class EventScheduler {
             return;
         }
         
-        // Przekazuj aktualny czas do menedżera bossbarów
         Bukkit.getScheduler().runTask(plugin, () -> bossBarManager.updateBossBars(upcomingEvents, now));
         
         checkAndSendAnnouncements(now, upcomingEvents);
@@ -84,9 +86,16 @@ public class EventScheduler {
                 String announcementId = event.id() + "@" + announcement.timeBefore().toString();
 
                 if (now.isAfter(announcementTime) && !todaysAnnounced.contains(announcementId)) {
-                    Bukkit.getScheduler().runTask(plugin, () ->
-                        Bukkit.broadcastMessage(event.getFormattedText(announcement.message()))
-                    );
+                    String formattedMessage = event.getFormattedText(announcement.message());
+                    
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        for (Player player : Bukkit.getOnlinePlayers()) {
+                            if (preferenceManager.hasAnnouncementsEnabled(player.getUniqueId())) {
+                                player.sendMessage(formattedMessage);
+                            }
+                        }
+                    });
+                    
                     todaysAnnounced.add(announcementId);
                 }
             }
