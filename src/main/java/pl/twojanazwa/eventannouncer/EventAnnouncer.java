@@ -1,11 +1,14 @@
 package pl.twojanazwa.eventannouncer;
 
 import org.bukkit.plugin.java.JavaPlugin;
-import pl.twojanazwa.eventannouncer.model.ScheduledEvent;
+import pl.twojanazwa.eventannouncer.command.ToggleCommand;
+
+import java.util.Objects;
 
 public final class EventAnnouncer extends JavaPlugin {
     private EventScheduler eventScheduler;
     private BossBarManager bossBarManager;
+    private PreferenceManager preferenceManager;
 
     @Override
     public void onEnable() {
@@ -15,10 +18,18 @@ public final class EventAnnouncer extends JavaPlugin {
             return;
         }
 
-        this.bossBarManager = new BossBarManager(this);
-        this.eventScheduler = new EventScheduler(this, configManager, bossBarManager);
+        this.preferenceManager = new PreferenceManager(this);
+        this.bossBarManager = new BossBarManager(this, preferenceManager);
+        this.eventScheduler = new EventScheduler(this, configManager, bossBarManager, preferenceManager);
 
         getServer().getPluginManager().registerEvents(bossBarManager, this);
+        Objects.requireNonNull(getCommand("eventannouncer")).setExecutor(new ToggleCommand(preferenceManager));
+
+        if (getServer().getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+            new PAPIExpansion(preferenceManager).register();
+            getLogger().info("Pomyślnie zintegrowano z PlaceholderAPI.");
+        }
+
         eventScheduler.run();
 
         getLogger().info("EventAnnouncer v2.0 został pomyślnie włączony!");
@@ -33,9 +44,5 @@ public final class EventAnnouncer extends JavaPlugin {
             bossBarManager.removeAllBossBars();
         }
         getLogger().info("EventAnnouncer został wyłączony.");
-    }
-
-    public BossBarManager getBossBarManager() {
-        return bossBarManager;
     }
 }
