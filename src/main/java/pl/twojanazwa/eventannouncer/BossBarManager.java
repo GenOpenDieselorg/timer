@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set; // <--- BRAKUJĄCY IMPORT
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
