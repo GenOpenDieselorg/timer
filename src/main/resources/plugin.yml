@@ -4,3 +4,9 @@ main: pl.twojanazwa.eventannouncer.EventAnnouncer
 api-version: '1.21'
 author: TwojaNazwa
 description: Minimalistyczny i wydajny system ogłoszeń dla cyklicznych eventów.
+softdepend: [PlaceholderAPI]
+commands:
+  eventannouncer:
+    description: Główna komenda pluginu EventAnnouncer.
+    aliases: [ea, announcer]
+    usage: /<command> toggle
