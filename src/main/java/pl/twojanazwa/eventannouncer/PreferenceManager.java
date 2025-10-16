@@ -25,9 +25,22 @@ public class PreferenceManager {
     }
 
     public void loadPreferences() {
+        // POPRAWKA: Zastąpiono plugin.saveResource("preferences.yml", false) (które zawodziło)
+        // ręczną logiką tworzenia pliku, jeśli nie istnieje.
         if (!preferencesFile.exists()) {
-            plugin.saveResource("preferences.yml", false);
+            try {
+                // Upewniamy się, że folder danych pluginu istnieje
+                if (!plugin.getDataFolder().exists()) {
+                    plugin.getDataFolder().mkdirs();
+                }
+                // Tworzymy pusty plik preferences.yml
+                preferencesFile.createNewFile();
+            } catch (IOException e) {
+                plugin.getLogger().severe("Nie można utworzyć pliku preferences.yml! " + e.getMessage());
+                // Kontynuujemy, ładując pustą konfigurację w pamięci
+            }
         }
+        
         preferencesConfig = YamlConfiguration.loadConfiguration(preferencesFile);
         List<String> disabledUuids = preferencesConfig.getStringList("disabled_players");
         disabledPlayers.clear();
