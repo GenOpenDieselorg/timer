@@ -13,7 +13,7 @@ import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.Set; // <--- BRAKUJĄCY IMPORT
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -51,6 +51,23 @@ public class BossBarManager implements Listener {
     
     private void updateAndShowCurrentBossBar(ZonedDateTime now) {
         if (currentEvents.isEmpty()) return;
+
+        // HARDCODED: Wyświetlanie co 5 minut przez 30 sekund
+        // Używamy czasu systemowego, aby zsynchronizować wyświetlanie dla wszystkich graczy
+        long currentTime = System.currentTimeMillis();
+        long interval = 5 * 60 * 1000; // 5 minut (cykl)
+        long duration = 30 * 1000;     // 30 sekund (czas widoczności)
+        
+        // Sprawdzamy, czy znajdujemy się w oknie czasowym "widoczności"
+        boolean shouldShow = (currentTime % interval) < duration;
+
+        if (!shouldShow) {
+            // Jeśli jesteśmy poza oknem 30 sekund, ukrywamy bossbary wszystkim
+            activeBossBars.values().forEach(BossBar::removeAll);
+            return;
+        }
+
+        // Jeśli jesteśmy w oknie widoczności, aktualizujemy i pokazujemy BossBar
         ScheduledEvent eventToShow = currentEvents.get(currentEventIndex);
         BossBar barToShow = activeBossBars.get(eventToShow.id());
         if (barToShow == null) return;
@@ -68,9 +85,18 @@ public class BossBarManager implements Listener {
         barToShow.setTitle(title);
 
         for (Player player : Bukkit.getOnlinePlayers()) {
-            activeBossBars.values().forEach(bar -> bar.removePlayer(player));
+            // Upewniamy się, że gracz nie widzi innych bossbarów (np. przy rotacji)
+            activeBossBars.values().forEach(bar -> {
+                if (!bar.equals(barToShow)) {
+                    bar.removePlayer(player);
+                }
+            });
+            
+            // Dodajemy gracza do aktualnego bossbara, jeśli ma włączone powiadomienia
             if (preferenceManager.hasAnnouncementsEnabled(player.getUniqueId())) {
                 barToShow.addPlayer(player);
+            } else {
+                barToShow.removePlayer(player);
             }
         }
     }
@@ -111,13 +137,8 @@ public class BossBarManager implements Listener {
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
-        if (currentEvents.isEmpty() || !preferenceManager.hasAnnouncementsEnabled(event.getPlayer().getUniqueId())) return;
-        
-        ScheduledEvent eventToShow = currentEvents.get(currentEventIndex);
-        BossBar bar = activeBossBars.get(eventToShow.id());
-        if (bar != null) {
-            bar.addPlayer(event.getPlayer());
-        }
+        // Logika dodawania gracza została przeniesiona do pętli updateAndShowCurrentBossBar.
+        // Dzięki temu gracz zobaczy bossbar tylko wtedy, gdy akurat trwa okienko 30 sekund.
     }
 
     @EventHandler
