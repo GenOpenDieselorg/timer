@@ -21,9 +21,12 @@ public class BossBarManager implements Listener {
     private final EventAnnouncer plugin;
     private final PreferenceManager preferenceManager;
     private final Map<String, BossBar> activeBossBars = new ConcurrentHashMap<>();
-    private List<ScheduledEvent> currentEvents = List.of();
-    private int currentEventIndex = 0;
-    private long lastRotationTime = 0;
+    private volatile List<ScheduledEvent> currentEvents = List.of();
+    private volatile int currentEventIndex = 0;
+    private volatile long lastRotationTime = 0;
+    
+    // Cache dla aktualnie wyświetlanego BossBara
+    private volatile BossBar currentlyShownBar = null;
 
     public BossBarManager(EventAnnouncer plugin, PreferenceManager preferenceManager) {
         this.plugin = plugin;
@@ -52,22 +55,20 @@ public class BossBarManager implements Listener {
     private void updateAndShowCurrentBossBar(ZonedDateTime now) {
         if (currentEvents.isEmpty()) return;
 
-        // HARDCODED: Wyświetlanie co 5 minut przez 30 sekund
-        // Używamy czasu systemowego, aby zsynchronizować wyświetlanie dla wszystkich graczy
         long currentTime = System.currentTimeMillis();
-        long interval = 5 * 60 * 1000; // 5 minut (cykl)
-        long duration = 30 * 1000;     // 30 sekund (czas widoczności)
+        long interval = 5 * 60 * 1000; // 5 minut
+        long duration = 30 * 1000;     // 30 sekund
         
-        // Sprawdzamy, czy znajdujemy się w oknie czasowym "widoczności"
         boolean shouldShow = (currentTime % interval) < duration;
 
         if (!shouldShow) {
-            // Jeśli jesteśmy poza oknem 30 sekund, ukrywamy bossbary wszystkim
-            activeBossBars.values().forEach(BossBar::removeAll);
+            if (currentlyShownBar != null) {
+                currentlyShownBar.removeAll();
+                currentlyShownBar = null;
+            }
             return;
         }
 
-        // Jeśli jesteśmy w oknie widoczności, aktualizujemy i pokazujemy BossBar
         ScheduledEvent eventToShow = currentEvents.get(currentEventIndex);
         BossBar barToShow = activeBossBars.get(eventToShow.id());
         if (barToShow == null) return;
@@ -84,17 +85,18 @@ public class BossBarManager implements Listener {
         }
         barToShow.setTitle(title);
 
+        // Optymalizacja: usuń gracza ze starego bara tylko jeśli się zmienił
+        if (currentlyShownBar != null && !currentlyShownBar.equals(barToShow)) {
+            currentlyShownBar.removeAll();
+        }
+        currentlyShownBar = barToShow;
+
+        // Jedna iteracja po graczach
         for (Player player : Bukkit.getOnlinePlayers()) {
-            // Upewniamy się, że gracz nie widzi innych bossbarów (np. przy rotacji)
-            activeBossBars.values().forEach(bar -> {
-                if (!bar.equals(barToShow)) {
-                    bar.removePlayer(player);
-                }
-            });
-            
-            // Dodajemy gracza do aktualnego bossbara, jeśli ma włączone powiadomienia
             if (preferenceManager.hasAnnouncementsEnabled(player.getUniqueId())) {
-                barToShow.addPlayer(player);
+                if (!barToShow.getPlayers().contains(player)) {
+                    barToShow.addPlayer(player);
+                }
             } else {
                 barToShow.removePlayer(player);
             }
@@ -129,6 +131,7 @@ public class BossBarManager implements Listener {
         activeBossBars.clear();
         currentEvents = List.of();
         currentEventIndex = 0;
+        currentlyShownBar = null;
     }
     
     public boolean hasActiveBars() {
@@ -137,12 +140,15 @@ public class BossBarManager implements Listener {
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
-        // Logika dodawania gracza została przeniesiona do pętli updateAndShowCurrentBossBar.
-        // Dzięki temu gracz zobaczy bossbar tylko wtedy, gdy akurat trwa okienko 30 sekund.
+        // Gracz zostanie dodany w następnym uaktualnieniu bossbara
     }
 
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
-        activeBossBars.values().forEach(bar -> bar.removePlayer(event.getPlayer()));
+        Player player = event.getPlayer();
+        // Optymalizacja: usuń tylko z aktualnie pokazywanego
+        if (currentlyShownBar != null) {
+            currentlyShownBar.removePlayer(player);
+        }
     }
 }
