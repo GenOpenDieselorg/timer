@@ -1,105 +1,50 @@
 package pl.twojanazwa.eventannouncer;
 
 import org.bukkit.Bukkit;
-import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitTask;
-import pl.twojanazwa.eventannouncer.model.ScheduledEvent;
-import java.time.LocalDate;
-import java.time.ZonedDateTime;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
+import org.bukkit.plugin.java.JavaPlugin;
 
-public class EventScheduler {
-    private final EventAnnouncer plugin;
-    private final ConfigManager configManager;
-    private final BossBarManager bossBarManager;
-    private final PreferenceManager preferenceManager;
-    private BukkitTask mainTask;
-    private final Set<String> todaysAnnounced = ConcurrentHashMap.newKeySet();
-    private volatile List<ScheduledEvent> todaysEvents = List.of();
-    private volatile LocalDate lastCheckedDate = null;
+public class EventAnnouncer extends JavaPlugin {
 
-    public EventScheduler(EventAnnouncer plugin, ConfigManager configManager, BossBarManager bossBarManager, PreferenceManager preferenceManager) {
-        this.plugin = plugin;
-        this.configManager = configManager;
-        this.bossBarManager = bossBarManager;
-        this.preferenceManager = preferenceManager;
+    private ConfigManager configManager;
+    private PreferenceManager preferenceManager;
+    private BossBarManager bossBarManager;
+    private EventScheduler eventScheduler;
+
+    @Override
+    public void onEnable() {
+        configManager = new ConfigManager(this);
+        preferenceManager = new PreferenceManager(this);
+        bossBarManager = new BossBarManager(this, preferenceManager);
+        eventScheduler = new EventScheduler(this, configManager, bossBarManager, preferenceManager);
+
+        Bukkit.getPluginManager().registerEvents(bossBarManager, this);
+
+        getCommand("eventannouncer").setExecutor(
+            new pl.twojanazwa.eventannouncer.command.ToggleCommand(preferenceManager)
+        );
+
+        eventScheduler.run();
+
+        // Rejestracja PlaceholderAPI jeśli dostępne
+        if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null) {
+            new PAPIExpansion(preferenceManager).register();
+            getLogger().info("PlaceholderAPI expansion registered.");
+        }
+
+        getLogger().info("EventAnnouncer enabled!");
     }
 
-    public void run() {
-        mainTask = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::tick, 0L, 20L);
-    }
-
-    public void stop() {
-        if (mainTask != null) {
-            mainTask.cancel();
-            mainTask = null;
+    @Override
+    public void onDisable() {
+        if (eventScheduler != null) {
+            eventScheduler.stop();
         }
-    }
-
-    private void tick() {
-        ZonedDateTime now = ZonedDateTime.now(configManager.getTimeZone());
-
-        if (lastCheckedDate == null || !lastCheckedDate.equals(now.toLocalDate())) {
-            lastCheckedDate = now.toLocalDate();
-            updateTodaysEvents(lastCheckedDate);
-            todaysAnnounced.clear();
+        if (bossBarManager != null) {
+            bossBarManager.removeAllBossBars();
         }
-
-        if (now.toLocalTime().isBefore(configManager.getAnnouncementStartTime())) {
-            if (bossBarManager.hasActiveBars()) {
-                Bukkit.getScheduler().runTask(plugin, bossBarManager::removeAllBossBars);
-            }
-            return;
+        if (preferenceManager != null) {
+            preferenceManager.shutdown(); // Zapisz oczekujące zmiany
         }
-
-        List<ScheduledEvent> upcomingEvents = todaysEvents.stream()
-                .filter(event -> now.toLocalTime().isBefore(event.time()))
-                .collect(Collectors.toList());
-
-        if (upcomingEvents.isEmpty()) {
-            if (bossBarManager.hasActiveBars()) {
-                 Bukkit.getScheduler().runTask(plugin, bossBarManager::removeAllBossBars);
-            }
-            return;
-        }
-        
-        Bukkit.getScheduler().runTask(plugin, () -> bossBarManager.updateBossBars(upcomingEvents, now));
-        
-        checkAndSendAnnouncements(now, upcomingEvents);
-    }
-
-    private void updateTodaysEvents(LocalDate today) {
-        todaysEvents = configManager.getScheduledEvents().stream()
-                .filter(event -> event.isEventScheduledFor(today))
-                .collect(Collectors.toList());
-        
-        if (!todaysEvents.isEmpty()) {
-            plugin.getLogger().info("Znaleziono " + todaysEvents.size() + " wydarzeń na dziś (" + today + ").");
-        }
-    }
-
-    private void checkAndSendAnnouncements(ZonedDateTime now, List<ScheduledEvent> upcomingEvents) {
-        for (ScheduledEvent event : upcomingEvents) {
-            ZonedDateTime eventTime = now.toLocalDate().atTime(event.time()).atZone(configManager.getTimeZone());
-            for (ScheduledEvent.Announcement announcement : event.announcements()) {
-                ZonedDateTime announcementTime = eventTime.minus(announcement.timeBefore());
-                String announcementId = event.id() + "@" + announcement.timeBefore().toString();
-
-                if (now.isAfter(announcementTime) && todaysAnnounced.add(announcementId)) {
-                    String formattedMessage = event.getFormattedText(announcement.message());
-                    
-                    Bukkit.getScheduler().runTask(plugin, () -> {
-                        for (Player player : Bukkit.getOnlinePlayers()) {
-                            if (preferenceManager.hasAnnouncementsEnabled(player.getUniqueId())) {
-                                player.sendMessage(formattedMessage);
-                            }
-                        }
-                    });
-                }
-            }
-        }
+        getLogger().info("EventAnnouncer disabled!");
     }
 }
