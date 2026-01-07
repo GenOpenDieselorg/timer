@@ -1,22 +1,29 @@
 package pl.twojanazwa.eventannouncer;
 
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 public class PreferenceManager {
 
     private final EventAnnouncer plugin;
-    private final Set<UUID> disabledPlayers = new HashSet<>();
+    private final Set<UUID> disabledPlayers = ConcurrentHashMap.newKeySet();
     private final File preferencesFile;
     private FileConfiguration preferencesConfig;
+    
+    // Debounced save - zapisuje max raz na 30 sekund
+    private volatile boolean pendingSave = false;
+    private BukkitTask saveTask = null;
+    private static final long SAVE_DELAY_TICKS = 30 * 20L; // 30 sekund
 
     public PreferenceManager(EventAnnouncer plugin) {
         this.plugin = plugin;
@@ -25,19 +32,14 @@ public class PreferenceManager {
     }
 
     public void loadPreferences() {
-        // POPRAWKA: Zastąpiono plugin.saveResource("preferences.yml", false) (które zawodziło)
-        // ręczną logiką tworzenia pliku, jeśli nie istnieje.
         if (!preferencesFile.exists()) {
             try {
-                // Upewniamy się, że folder danych pluginu istnieje
                 if (!plugin.getDataFolder().exists()) {
                     plugin.getDataFolder().mkdirs();
                 }
-                // Tworzymy pusty plik preferences.yml
                 preferencesFile.createNewFile();
             } catch (IOException e) {
                 plugin.getLogger().severe("Nie można utworzyć pliku preferences.yml! " + e.getMessage());
-                // Kontynuujemy, ładując pustą konfigurację w pamięci
             }
         }
         
@@ -53,7 +55,17 @@ public class PreferenceManager {
         }
     }
 
-    public void savePreferences() {
+    private void scheduleSave() {
+        if (pendingSave) return;
+        pendingSave = true;
+        
+        saveTask = Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, () -> {
+            savePreferencesNow();
+            pendingSave = false;
+        }, SAVE_DELAY_TICKS);
+    }
+    
+    private void savePreferencesNow() {
         List<String> disabledUuids = disabledPlayers.stream()
                 .map(UUID::toString)
                 .collect(Collectors.toList());
@@ -63,6 +75,18 @@ public class PreferenceManager {
         } catch (IOException e) {
             plugin.getLogger().severe("Nie można zapisać pliku preferences.yml!");
             e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Wywoływane przy wyłączaniu pluginu - zapisz natychmiast jeśli są oczekujące zmiany
+     */
+    public void shutdown() {
+        if (saveTask != null) {
+            saveTask.cancel();
+        }
+        if (pendingSave) {
+            savePreferencesNow();
         }
     }
 
@@ -75,14 +99,15 @@ public class PreferenceManager {
      * @return The new state (true for enabled, false for disabled).
      */
     public boolean togglePreferences(UUID playerUuid) {
+        boolean newState;
         if (disabledPlayers.contains(playerUuid)) {
             disabledPlayers.remove(playerUuid);
-            savePreferences();
-            return true; // Enabled
+            newState = true; // Enabled
         } else {
             disabledPlayers.add(playerUuid);
-            savePreferences();
-            return false; // Disabled
+            newState = false; // Disabled
         }
+        scheduleSave(); // Debounced save
+        return newState;
     }
 }
