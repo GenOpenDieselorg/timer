@@ -1,0 +1,24 @@
+# Konfiguracja cyklicznych BossBarów (ogłoszeń)
+
+# Ustawienia czasu (w sekundach)
+settings:
+  # Co ile sekund ma się pojawiać ogłoszenie? (np. 180 = 3 minuty)
+  interval: 180
+  # Ile sekund ogłoszenie ma być widoczne? (np. 30 sekund)
+  duration: 30
+
+# Lista ogłoszeń. Będą wyświetlane po kolei.
+# Dostępne kolory paska: PINK, BLUE, RED, GREEN, YELLOW, PURPLE, WHITE
+# Dostępne style: SOLID, SEGMENTED_6, SEGMENTED_10, SEGMENTED_12, SEGMENTED_20
+bars:
+  - text: "&#FF0000Zapraszamy na naszego Discorda: &#FFFFFFdc.twojserwer.pl"
+    color: "RED"
+    style: "SOLID"
+  
+  - text: "&#00FF00Pamiętaj o odebraniu nagrody dziennej pod &#FFFFFF/daily"
+    color: "GREEN"
+    style: "SEGMENTED_10"
+    
+  - text: "&#FFAA00Event §lPowiększanie Światów §r&#FFAA00odbywa się co 4 dni!"
+    color: "YELLOW"
+    style: "SOLID"
