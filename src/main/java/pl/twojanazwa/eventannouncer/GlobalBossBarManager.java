@@ -18,6 +18,8 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -27,7 +29,7 @@ public class GlobalBossBarManager implements Listener {
     private final PreferenceManager preferenceManager;
     
     private final List<BossBarData> bossBarList = new ArrayList<>();
-    private BossBar activeBossBar; // Jedna instancja BossBara reutilizowana dla wydajności
+    private BossBar activeBossBar;
     
     private int intervalTicks;
     private int durationTicks;
@@ -36,6 +38,9 @@ public class GlobalBossBarManager implements Listener {
     private int currentTimer = 0;
     private int currentIndex = 0;
     private boolean isShowing = false;
+    
+    // Cache graczy w bossbarze - O(1) lookup
+    private final Set<UUID> playersInBar = ConcurrentHashMap.newKeySet();
     
     // Pattern do kolorów HEX &#RRGGBB
     private static final Pattern HEX_PATTERN = Pattern.compile("&#([A-Fa-f0-9]{6})");
@@ -86,8 +91,8 @@ public class GlobalBossBarManager implements Listener {
         activeBossBar = Bukkit.createBossBar("", BarColor.WHITE, BarStyle.SOLID);
         activeBossBar.setVisible(false);
         
-        // Task uruchamiany co 1 tick dla płynnej animacji
-        task = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 0L, 1L);
+        // Task co 20 ticków (1 sekunda) zamiast co 1 tick - wystarczająca płynność
+        task = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 0L, 20L);
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
@@ -100,6 +105,7 @@ public class GlobalBossBarManager implements Listener {
             activeBossBar.removeAll();
             activeBossBar = null;
         }
+        playersInBar.clear();
         isShowing = false;
         currentTimer = 0;
     }
@@ -108,8 +114,8 @@ public class GlobalBossBarManager implements Listener {
         if (bossBarList.isEmpty()) return;
 
         if (isShowing) {
-            // Faza wyświetlania (30s)
-            currentTimer++;
+            // Faza wyświetlania - inkrementuj o 20 ticków
+            currentTimer += 20;
             
             // Oblicz postęp (od 1.0 do 0.0)
             double progress = 1.0 - ((double) currentTimer / durationTicks);
@@ -120,8 +126,8 @@ public class GlobalBossBarManager implements Listener {
                 hideBar();
             }
         } else {
-            // Faza oczekiwania (3min)
-            currentTimer++;
+            // Faza oczekiwania - inkrementuj o 20 ticków
+            currentTimer += 20;
             if (currentTimer >= intervalTicks) {
                 showNextBar();
             }
@@ -142,9 +148,11 @@ public class GlobalBossBarManager implements Listener {
         activeBossBar.setVisible(true);
 
         // Dodaj wszystkich graczy, którzy mają włączone powiadomienia
+        playersInBar.clear();
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (preferenceManager.hasAnnouncementsEnabled(player.getUniqueId())) {
                 activeBossBar.addPlayer(player);
+                playersInBar.add(player.getUniqueId());
             }
         }
 
@@ -153,7 +161,8 @@ public class GlobalBossBarManager implements Listener {
     }
 
     private void hideBar() {
-        activeBossBar.removeAll(); // Usuwa wszystkich graczy z paska
+        activeBossBar.removeAll();
+        playersInBar.clear();
         activeBossBar.setVisible(false);
         isShowing = false;
         currentTimer = 0;
@@ -181,15 +190,18 @@ public class GlobalBossBarManager implements Listener {
     public void onJoin(PlayerJoinEvent event) {
         // Jeśli pasek jest aktualnie wyświetlany, dodaj gracza (jeśli ma włączone opcje)
         if (isShowing && activeBossBar != null) {
-            if (preferenceManager.hasAnnouncementsEnabled(event.getPlayer().getUniqueId())) {
+            UUID uuid = event.getPlayer().getUniqueId();
+            if (preferenceManager.hasAnnouncementsEnabled(uuid)) {
                 activeBossBar.addPlayer(event.getPlayer());
+                playersInBar.add(uuid);
             }
         }
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        // Bukkit sam czyści graczy z BossBarów przy wyjściu, ale dla pewności logicznej:
+        UUID uuid = event.getPlayer().getUniqueId();
+        playersInBar.remove(uuid);
         if (activeBossBar != null) {
             activeBossBar.removePlayer(event.getPlayer());
         }
