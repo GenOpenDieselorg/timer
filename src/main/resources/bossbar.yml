@@ -11,7 +11,7 @@ settings:
 # Dostępne kolory paska: PINK, BLUE, RED, GREEN, YELLOW, PURPLE, WHITE
 # Dostępne style: SOLID, SEGMENTED_6, SEGMENTED_10, SEGMENTED_12, SEGMENTED_20
 bars:
-  - text: "&#FF0000Zapraszamy na naszego Discorda: &#FFFFFFdc.twojserwer.pl"
+  - text: "&#FF0000Zapraszamy na naszego Discorda: &#FFFFFFbfsmc.pl/discord"
     color: "RED"
     style: "SOLID"
   
@@ -19,6 +19,3 @@ bars:
     color: "GREEN"
     style: "SEGMENTED_10"
     
-  - text: "&#FFAA00Event §lPowiększanie Światów §r&#FFAA00odbywa się co 4 dni!"
-    color: "YELLOW"
-    style: "SOLID"
