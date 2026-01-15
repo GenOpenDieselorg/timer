@@ -32,7 +32,8 @@ public class EventScheduler {
     }
 
     public void run() {
-        mainTask = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::tick, 0L, 20L);
+        // Synchroniczny task na main unika context switch
+        mainTask = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 0L, 20L);
     }
 
     public void stop() {
@@ -54,7 +55,7 @@ public class EventScheduler {
 
         if (now.toLocalTime().isBefore(configManager.getAnnouncementStartTime())) {
             if (bossBarManager.hasActiveBars()) {
-                Bukkit.getScheduler().runTask(plugin, bossBarManager::removeAllBossBars);
+                bossBarManager.removeAllBossBars();
             }
             return;
         }
@@ -68,12 +69,12 @@ public class EventScheduler {
 
         if (upcomingEvents.isEmpty()) {
             if (bossBarManager.hasActiveBars()) {
-                Bukkit.getScheduler().runTask(plugin, bossBarManager::removeAllBossBars);
+                bossBarManager.removeAllBossBars();
             }
             return;
         }
         
-        Bukkit.getScheduler().runTask(plugin, () -> bossBarManager.updateBossBars(upcomingEvents, now));
+        bossBarManager.updateBossBars(upcomingEvents, now);
         
         checkAndSendAnnouncements(now, upcomingEvents);
     }
@@ -101,13 +102,11 @@ public class EventScheduler {
                     // Formatuj wiadomość raz, poza pętlą graczy
                     String formattedMessage = event.getFormattedText(announcement.message());
                     
-                    Bukkit.getScheduler().runTask(plugin, () -> {
-                        for (Player player : Bukkit.getOnlinePlayers()) {
-                            if (preferenceManager.hasAnnouncementsEnabled(player.getUniqueId())) {
-                                player.sendMessage(formattedMessage);
-                            }
+                    for (Player player : Bukkit.getOnlinePlayers()) {
+                        if (preferenceManager.hasAnnouncementsEnabled(player.getUniqueId())) {
+                            player.sendMessage(formattedMessage);
                         }
-                    });
+                    }
                 }
             }
         }
