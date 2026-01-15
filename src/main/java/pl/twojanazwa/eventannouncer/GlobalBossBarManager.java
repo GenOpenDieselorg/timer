@@ -17,6 +17,7 @@ import org.bukkit.scheduler.BukkitTask;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -68,11 +69,15 @@ public class GlobalBossBarManager implements Listener {
         ConfigurationSection barsSection = config.getConfigurationSection("bars");
         if (barsSection == null && config.isList("bars")) {
             // Obsługa listy map (standard YAML)
-            List<java.util.Map<?, ?>> list = config.getMapList("bars");
-            for (java.util.Map<?, ?> map : list) {
-                String text = (String) map.getOrDefault("text", "");
-                String colorStr = (String) map.getOrDefault("color", "WHITE");
-                String styleStr = (String) map.getOrDefault("style", "SOLID");
+            List<Map<?, ?>> list = config.getMapList("bars");
+            for (Map<?, ?> map : list) {
+                Object textObj = map.get("text");
+                Object colorObj = map.get("color");
+                Object styleObj = map.get("style");
+                
+                String text = textObj != null ? textObj.toString() : "";
+                String colorStr = colorObj != null ? colorObj.toString() : "WHITE";
+                String styleStr = styleObj != null ? styleObj.toString() : "SOLID";
                 
                 try {
                     BarColor color = BarColor.valueOf(colorStr.toUpperCase());
