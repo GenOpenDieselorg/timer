@@ -7,11 +7,11 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 public class PreferenceManager {
 
@@ -20,10 +20,9 @@ public class PreferenceManager {
     private final File preferencesFile;
     private FileConfiguration preferencesConfig;
     
-    // Debounced save - zapisuje max raz na 30 sekund
     private volatile boolean pendingSave = false;
     private BukkitTask saveTask = null;
-    private static final long SAVE_DELAY_TICKS = 30 * 20L; // 30 sekund
+    private static final long SAVE_DELAY_TICKS = 30 * 20L;
 
     public PreferenceManager(EventAnnouncer plugin) {
         this.plugin = plugin;
@@ -66,9 +65,12 @@ public class PreferenceManager {
     }
     
     private void savePreferencesNow() {
-        List<String> disabledUuids = disabledPlayers.stream()
-                .map(UUID::toString)
-                .collect(Collectors.toList());
+        // Unikaj stream() - użyj zwykłej pętli
+        List<String> disabledUuids = new ArrayList<>(disabledPlayers.size());
+        for (UUID uuid : disabledPlayers) {
+            disabledUuids.add(uuid.toString());
+        }
+        
         preferencesConfig.set("disabled_players", disabledUuids);
         try {
             preferencesConfig.save(preferencesFile);
@@ -78,12 +80,10 @@ public class PreferenceManager {
         }
     }
     
-    /**
-     * Wywoływane przy wyłączaniu pluginu - zapisz natychmiast jeśli są oczekujące zmiany
-     */
     public void shutdown() {
         if (saveTask != null) {
             saveTask.cancel();
+            saveTask = null;
         }
         if (pendingSave) {
             savePreferencesNow();
@@ -94,20 +94,16 @@ public class PreferenceManager {
         return !disabledPlayers.contains(playerUuid);
     }
 
-    /**
-     * Toggles the player's preference.
-     * @return The new state (true for enabled, false for disabled).
-     */
     public boolean togglePreferences(UUID playerUuid) {
         boolean newState;
         if (disabledPlayers.contains(playerUuid)) {
             disabledPlayers.remove(playerUuid);
-            newState = true; // Enabled
+            newState = true;
         } else {
             disabledPlayers.add(playerUuid);
-            newState = false; // Disabled
+            newState = false;
         }
-        scheduleSave(); // Debounced save
+        scheduleSave();
         return newState;
     }
 }
