@@ -10,25 +10,20 @@ events:
     bossbar:
       color: GREEN
       style: SOLID
-      # Tekst wyświetlany, gdy odliczanie NIE jest aktywne.
       text: "§a§l{eventName} już dziś o §e§l{time}!"
-      
-      # NOWA SEKCJA: Odliczanie na bossbarze
       countdown:
-        # Czy włączyć odliczanie na bossbarze dla tego wydarzenia? (true/false)
         enabled: true
-        # Na ile przed wydarzeniem ma się rozpocząć odliczanie?
-        # Dostępne jednostki: hours, minutes, seconds
         start_before: "1 hours" 
-        # Jak ma wyglądać tekst PODCZAS odliczania?
-        # {countdown} zostanie zastąpione przez pozostały czas (np. 59m 45s)
         format: "§a§l{eventName} rozpocznie się za: §e§l{countdown}"
-
     announcements:
       - "1 hours: §8[§6!§8] §ePowiększanie światów nastąpi za §c1 godzinę§e!"
       - "30 minutes: §8[§6!§8] §ePrzygotujcie się! Powiększanie światów już za §c30 minut§e!"
       - "5 minutes: §8[§6!§8] §cPowiększanie światów za 5 minut!"
       - "0 seconds: §8[§6§l!§8] §a§lSTART! §2Światy właśnie się powiększają!"
+    # Komendy bez / wykonają się dokładnie o 20:00
+    commands:
+      - "broadcast Swiaty zostaly wlasnie powiekszone! Lec na eksploracje!"
+      - "give @a diamond 1"
 
   usuwanie_dzialek:
     display_name: "Usuwanie Działek"
@@ -45,3 +40,6 @@ events:
       - "1 hours: §8[§c!§8] §cOstrzeżenie! Usuwanie działek nastąpi za §c1 godzinę§c!"
       - "15 minutes: §8[§c!§8] §cNieaktywne działki zostaną usunięte za 15 minut!"
       - "0 seconds: §8[§4§l!§8] §4§lSTART! §cRozpoczęto proces usuwania działek!"
+    commands:
+      - "say Rozpoczynamy systemowe czyszczenie nieaktywnych działek!"
+      - "plot clearall" # Zmień na właściwą dla Ciebie komendę usunięcia działek
