@@ -25,7 +25,6 @@ public class ConfigManager {
     private int bossBarRotationMinutes;
     private LocalTime announcementStartTime;
 
-
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
     private static final Pattern REPEATING_PATTERN = Pattern.compile("every (\\d+) days from (\\d{4}-\\d{2}-\\d{2}) at (\\d{2}:\\d{2})");
@@ -87,9 +86,12 @@ public class ConfigManager {
         List<ScheduledEvent.Announcement> announcements = section.getStringList("announcements").stream()
             .map(this::parseAnnouncement).collect(Collectors.toList());
 
+        // NOWE: Pobieranie listy komend z konfiguracji
+        List<String> commands = section.getStringList("commands");
+
         scheduledEvents.add(new ScheduledEvent(
             key, section.getString("display_name", key), time, type, everyDays, startDate, specificDates,
-            barColor, barStyle, barText, countdownEnabled, countdownStart, countdownFormat, announcements
+            barColor, barStyle, barText, countdownEnabled, countdownStart, countdownFormat, announcements, commands
         ));
     }
     
