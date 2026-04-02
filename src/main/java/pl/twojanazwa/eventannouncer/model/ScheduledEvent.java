@@ -26,7 +26,10 @@ public record ScheduledEvent(
     String countdownFormat,
 
     // Announcements
-    List<Announcement> announcements
+    List<Announcement> announcements,
+
+    // Commands to execute on end
+    List<String> commands
 ) {
     public record Announcement(Duration timeBefore, String message) {}
     public enum ScheduleType { REPEATING, SPECIFIC }
