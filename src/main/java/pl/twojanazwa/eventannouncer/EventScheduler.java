@@ -21,6 +21,7 @@ public class EventScheduler {
     private BukkitTask mainTask;
     
     private final Set<String> todaysAnnounced = ConcurrentHashMap.newKeySet();
+    private final Set<String> todaysCommandsExecuted = ConcurrentHashMap.newKeySet(); // Rejestr wykonanych komend
     private volatile List<ScheduledEvent> todaysEvents = List.of();
     private volatile LocalDate lastCheckedDate = null;
     
@@ -54,6 +55,7 @@ public class EventScheduler {
             lastCheckedDate = today;
             updateTodaysEvents(today);
             todaysAnnounced.clear();
+            todaysCommandsExecuted.clear(); // Reset na nowy dzień
         }
 
         if (currentTime.isBefore(configManager.getAnnouncementStartTime())) {
@@ -65,7 +67,6 @@ public class EventScheduler {
 
         List<ScheduledEvent> events = todaysEvents;
         
-        // Reużyj listy zamiast tworzyć nową
         upcomingEventsCache.clear();
         for (ScheduledEvent event : events) {
             if (currentTime.isBefore(event.time())) {
@@ -73,15 +74,17 @@ public class EventScheduler {
             }
         }
 
-        if (upcomingEventsCache.isEmpty()) {
-            if (bossBarManager.hasActiveBars()) {
-                bossBarManager.removeAllBossBars();
-            }
-            return;
+        if (upcomingEventsCache.isEmpty() && !bossBarManager.hasActiveBars()) {
+            // Bossbary usunięte
+        } else if (upcomingEventsCache.isEmpty() && bossBarManager.hasActiveBars()) {
+            bossBarManager.removeAllBossBars();
+        } else {
+            bossBarManager.updateBossBars(upcomingEventsCache, now);
         }
-        
-        bossBarManager.updateBossBars(upcomingEventsCache, now);
-        checkAndSendAnnouncements(now, upcomingEventsCache);
+
+        // Sprawdzamy powiadomienia i komendy na wszystkich dzisiejszych wydarzeniach
+        checkAndSendAnnouncements(now, events);
+        checkAndExecuteCommands(now, events);
     }
 
     private void updateTodaysEvents(LocalDate today) {
@@ -101,9 +104,9 @@ public class EventScheduler {
         }
     }
 
-    private void checkAndSendAnnouncements(ZonedDateTime now, List<ScheduledEvent> upcomingEvents) {
-        for (int i = 0; i < upcomingEvents.size(); i++) {
-            ScheduledEvent event = upcomingEvents.get(i);
+    private void checkAndSendAnnouncements(ZonedDateTime now, List<ScheduledEvent> events) {
+        for (int i = 0; i < events.size(); i++) {
+            ScheduledEvent event = events.get(i);
             ZonedDateTime eventTime = now.toLocalDate().atTime(event.time()).atZone(configManager.getTimeZone());
             
             List<ScheduledEvent.Announcement> announcements = event.announcements();
@@ -112,12 +115,38 @@ public class EventScheduler {
                 ZonedDateTime announcementTime = eventTime.minus(announcement.timeBefore());
                 String announcementId = event.id() + "@" + announcement.timeBefore().toString();
 
-                if (now.isAfter(announcementTime) && todaysAnnounced.add(announcementId)) {
+                // Sprawdzamy czy czas nadszedł i zamykamy okienko w ciągu 2 minut by uniknąć spamu po restarcie serwera
+                if (!now.isBefore(announcementTime) && now.isBefore(announcementTime.plusMinutes(2)) && todaysAnnounced.add(announcementId)) {
                     String formattedMessage = event.getFormattedText(announcement.message());
                     
                     for (Player player : Bukkit.getOnlinePlayers()) {
                         if (preferenceManager.hasAnnouncementsEnabled(player.getUniqueId())) {
                             player.sendMessage(formattedMessage);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void checkAndExecuteCommands(ZonedDateTime now, List<ScheduledEvent> events) {
+        for (int i = 0; i < events.size(); i++) {
+            ScheduledEvent event = events.get(i);
+            ZonedDateTime eventTime = now.toLocalDate().atTime(event.time()).atZone(configManager.getTimeZone());
+
+            // Komendy wykonują się w momencie "0" (lub do 2 minut w przypadku chwilowego zawieszenia serwera)
+            if (!now.isBefore(eventTime) && now.isBefore(eventTime.plusMinutes(2))) {
+                if (todaysCommandsExecuted.add(event.id())) {
+                    List<String> commands = event.commands();
+                    if (commands != null && !commands.isEmpty()) {
+                        for (String command : commands) {
+                            String formattedCommand = event.getFormattedText(command);
+                            // Usunięcie slashy na początku, jeżeli użytkownik je omyłkowo dopisze
+                            if (formattedCommand.startsWith("/")) {
+                                formattedCommand = formattedCommand.substring(1);
+                            }
+                            // Wywołanie z perspektywy konsoli
+                            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), formattedCommand);
                         }
                     }
                 }
