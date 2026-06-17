@@ -1,9 +1,7 @@
 package pl.twojanazwa.eventannouncer;
 
-import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
 import java.io.IOException;
@@ -16,16 +14,18 @@ import java.util.concurrent.ConcurrentHashMap;
 public class PreferenceManager {
 
     private final EventAnnouncer plugin;
+    private final ServerScheduler scheduler;
     private final Set<UUID> disabledPlayers = ConcurrentHashMap.newKeySet();
     private final File preferencesFile;
     private FileConfiguration preferencesConfig;
     
     private volatile boolean pendingSave = false;
-    private BukkitTask saveTask = null;
+    private ServerScheduler.TaskHandle saveTask = null;
     private static final long SAVE_DELAY_TICKS = 30 * 20L;
 
-    public PreferenceManager(EventAnnouncer plugin) {
+    public PreferenceManager(EventAnnouncer plugin, ServerScheduler scheduler) {
         this.plugin = plugin;
+        this.scheduler = scheduler;
         this.preferencesFile = new File(plugin.getDataFolder(), "preferences.yml");
         loadPreferences();
     }
@@ -58,7 +58,7 @@ public class PreferenceManager {
         if (pendingSave) return;
         pendingSave = true;
         
-        saveTask = Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, () -> {
+        saveTask = scheduler.runAsyncLater(() -> {
             savePreferencesNow();
             pendingSave = false;
         }, SAVE_DELAY_TICKS);

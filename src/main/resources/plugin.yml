@@ -2,6 +2,7 @@ name: EventAnnouncer
 version: 2.0.0
 main: pl.twojanazwa.eventannouncer.EventAnnouncer
 api-version: '1.21'
+folia-supported: true
 author: TwojaNazwa
 description: Minimalistyczny i wydajny system ogłoszeń dla cyklicznych eventów.
 softdepend: [PlaceholderAPI]

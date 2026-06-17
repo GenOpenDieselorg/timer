@@ -2,7 +2,6 @@ package pl.twojanazwa.eventannouncer;
 
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitTask;
 import pl.twojanazwa.eventannouncer.model.ScheduledEvent;
 
 import java.time.LocalDate;
@@ -18,7 +17,8 @@ public class EventScheduler {
     private final ConfigManager configManager;
     private final BossBarManager bossBarManager;
     private final PreferenceManager preferenceManager;
-    private BukkitTask mainTask;
+    private final ServerScheduler scheduler;
+    private ServerScheduler.TaskHandle mainTask;
     
     private final Set<String> todaysAnnounced = ConcurrentHashMap.newKeySet();
     private final Set<String> todaysCommandsExecuted = ConcurrentHashMap.newKeySet(); // Rejestr wykonanych komend
@@ -28,15 +28,16 @@ public class EventScheduler {
     // Cache dla uniknięcia tworzenia obiektów
     private final List<ScheduledEvent> upcomingEventsCache = new ArrayList<>();
 
-    public EventScheduler(EventAnnouncer plugin, ConfigManager configManager, BossBarManager bossBarManager, PreferenceManager preferenceManager) {
+    public EventScheduler(EventAnnouncer plugin, ConfigManager configManager, BossBarManager bossBarManager, PreferenceManager preferenceManager, ServerScheduler scheduler) {
         this.plugin = plugin;
         this.configManager = configManager;
         this.bossBarManager = bossBarManager;
         this.preferenceManager = preferenceManager;
+        this.scheduler = scheduler;
     }
 
     public void run() {
-        mainTask = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 0L, 20L);
+        mainTask = scheduler.runGlobalTimer(this::tick, 1L, 20L);
     }
 
     public void stop() {
@@ -120,9 +121,11 @@ public class EventScheduler {
                     String formattedMessage = event.getFormattedText(announcement.message());
                     
                     for (Player player : Bukkit.getOnlinePlayers()) {
-                        if (preferenceManager.hasAnnouncementsEnabled(player.getUniqueId())) {
-                            player.sendMessage(formattedMessage);
-                        }
+                        scheduler.runForPlayer(player, () -> {
+                            if (preferenceManager.hasAnnouncementsEnabled(player.getUniqueId())) {
+                                player.sendMessage(formattedMessage);
+                            }
+                        });
                     }
                 }
             }
@@ -146,7 +149,8 @@ public class EventScheduler {
                                 formattedCommand = formattedCommand.substring(1);
                             }
                             // Wywołanie z perspektywy konsoli
-                            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), formattedCommand);
+                            String commandToRun = formattedCommand;
+                            scheduler.runGlobal(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), commandToRun));
                         }
                     }
                 }

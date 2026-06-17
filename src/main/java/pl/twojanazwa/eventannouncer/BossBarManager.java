@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 public class BossBarManager implements Listener {
     private final EventAnnouncer plugin;
     private final PreferenceManager preferenceManager;
+    private final ServerScheduler scheduler;
     private final Map<String, BossBar> activeBossBars = new ConcurrentHashMap<>();
     private volatile List<ScheduledEvent> currentEvents = List.of();
     private volatile int currentEventIndex = 0;
@@ -33,9 +34,10 @@ public class BossBarManager implements Listener {
     private volatile long lastPlayerSyncTime = 0;
     private static final long PLAYER_SYNC_INTERVAL_MS = 5000; // Synchronizuj graczy co 5 sekund
 
-    public BossBarManager(EventAnnouncer plugin, PreferenceManager preferenceManager) {
+    public BossBarManager(EventAnnouncer plugin, PreferenceManager preferenceManager, ServerScheduler scheduler) {
         this.plugin = plugin;
         this.preferenceManager = preferenceManager;
+        this.scheduler = scheduler;
     }
 
     public void updateBossBars(List<ScheduledEvent> todaysEvents, ZonedDateTime now) {
@@ -106,17 +108,19 @@ public class BossBarManager implements Listener {
     
     private void syncPlayersInBar(BossBar bar) {
         for (Player player : Bukkit.getOnlinePlayers()) {
-            UUID uuid = player.getUniqueId();
-            boolean shouldHaveBar = preferenceManager.hasAnnouncementsEnabled(uuid);
-            boolean hasBar = playersInBar.contains(uuid);
-            
-            if (shouldHaveBar && !hasBar) {
-                bar.addPlayer(player);
-                playersInBar.add(uuid);
-            } else if (!shouldHaveBar && hasBar) {
-                bar.removePlayer(player);
-                playersInBar.remove(uuid);
-            }
+            scheduler.runForPlayer(player, () -> {
+                UUID uuid = player.getUniqueId();
+                boolean shouldHaveBar = preferenceManager.hasAnnouncementsEnabled(uuid);
+                boolean hasBar = playersInBar.contains(uuid);
+                
+                if (shouldHaveBar && !hasBar) {
+                    bar.addPlayer(player);
+                    playersInBar.add(uuid);
+                } else if (!shouldHaveBar && hasBar) {
+                    bar.removePlayer(player);
+                    playersInBar.remove(uuid);
+                }
+            });
         }
     }
 
@@ -163,8 +167,12 @@ public class BossBarManager implements Listener {
         
         // Natychmiast dodaj gracza jeśli bossbar jest aktywny
         if (currentlyShownBar != null && preferenceManager.hasAnnouncementsEnabled(uuid)) {
-            currentlyShownBar.addPlayer(player);
-            playersInBar.add(uuid);
+            scheduler.runForPlayer(player, () -> {
+                if (currentlyShownBar != null && preferenceManager.hasAnnouncementsEnabled(uuid)) {
+                    currentlyShownBar.addPlayer(player);
+                    playersInBar.add(uuid);
+                }
+            });
         }
     }
 
@@ -174,7 +182,11 @@ public class BossBarManager implements Listener {
         UUID uuid = player.getUniqueId();
         playersInBar.remove(uuid);
         if (currentlyShownBar != null) {
-            currentlyShownBar.removePlayer(player);
+            scheduler.runForPlayer(player, () -> {
+                if (currentlyShownBar != null) {
+                    currentlyShownBar.removePlayer(player);
+                }
+            });
         }
     }
 }

@@ -13,7 +13,6 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -29,6 +28,7 @@ public class GlobalBossBarManager implements Listener {
 
     private final EventAnnouncer plugin;
     private final PreferenceManager preferenceManager;
+    private final ServerScheduler scheduler;
     
     private final List<BossBarData> bossBarList = new ArrayList<>();
     private BossBar activeBossBar;
@@ -36,7 +36,7 @@ public class GlobalBossBarManager implements Listener {
     private int intervalTicks;
     private int durationTicks;
     
-    private BukkitTask task;
+    private ServerScheduler.TaskHandle task;
     private int currentTimer = 0;
     private int currentIndex = 0;
     private boolean isShowing = false;
@@ -45,9 +45,10 @@ public class GlobalBossBarManager implements Listener {
     
     private static final Pattern HEX_PATTERN = Pattern.compile("&#([A-Fa-f0-9]{6})");
 
-    public GlobalBossBarManager(EventAnnouncer plugin, PreferenceManager preferenceManager) {
+    public GlobalBossBarManager(EventAnnouncer plugin, PreferenceManager preferenceManager, ServerScheduler scheduler) {
         this.plugin = plugin;
         this.preferenceManager = preferenceManager;
+        this.scheduler = scheduler;
         loadConfig();
     }
 
@@ -91,7 +92,7 @@ public class GlobalBossBarManager implements Listener {
         activeBossBar = Bukkit.createBossBar("", BarColor.WHITE, BarStyle.SOLID);
         activeBossBar.setVisible(false);
         
-        task = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 0L, 20L);
+        task = scheduler.runGlobalTimer(this::tick, 1L, 20L);
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
@@ -147,11 +148,13 @@ public class GlobalBossBarManager implements Listener {
 
         playersInBar.clear();
         for (Player player : Bukkit.getOnlinePlayers()) {
-            UUID uuid = player.getUniqueId();
-            if (preferenceManager.hasAnnouncementsEnabled(uuid)) {
-                activeBossBar.addPlayer(player);
-                playersInBar.add(uuid);
-            }
+            scheduler.runForPlayer(player, () -> {
+                UUID uuid = player.getUniqueId();
+                if (preferenceManager.hasAnnouncementsEnabled(uuid) && activeBossBar != null) {
+                    activeBossBar.addPlayer(player);
+                    playersInBar.add(uuid);
+                }
+            });
         }
 
         isShowing = true;
@@ -184,11 +187,14 @@ public class GlobalBossBarManager implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         if (isShowing && activeBossBar != null) {
-            UUID uuid = event.getPlayer().getUniqueId();
-            if (preferenceManager.hasAnnouncementsEnabled(uuid)) {
-                activeBossBar.addPlayer(event.getPlayer());
-                playersInBar.add(uuid);
-            }
+            Player player = event.getPlayer();
+            scheduler.runForPlayer(player, () -> {
+                UUID uuid = player.getUniqueId();
+                if (preferenceManager.hasAnnouncementsEnabled(uuid) && activeBossBar != null) {
+                    activeBossBar.addPlayer(player);
+                    playersInBar.add(uuid);
+                }
+            });
         }
     }
 
@@ -197,7 +203,12 @@ public class GlobalBossBarManager implements Listener {
         UUID uuid = event.getPlayer().getUniqueId();
         playersInBar.remove(uuid);
         if (activeBossBar != null) {
-            activeBossBar.removePlayer(event.getPlayer());
+            Player player = event.getPlayer();
+            scheduler.runForPlayer(player, () -> {
+                if (activeBossBar != null) {
+                    activeBossBar.removePlayer(player);
+                }
+            });
         }
     }
 

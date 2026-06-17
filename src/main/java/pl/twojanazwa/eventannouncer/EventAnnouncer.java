@@ -10,20 +10,22 @@ public class EventAnnouncer extends JavaPlugin {
     private BossBarManager bossBarManager;
     private GlobalBossBarManager globalBossBarManager; // <--- NOWE
     private EventScheduler eventScheduler;
+    private ServerScheduler scheduler;
 
     @Override
     public void onEnable() {
+        scheduler = new ServerScheduler(this);
         configManager = new ConfigManager(this);
-        preferenceManager = new PreferenceManager(this);
+        preferenceManager = new PreferenceManager(this, scheduler);
         
         // Manager od Eventów (istniejący)
-        bossBarManager = new BossBarManager(this, preferenceManager);
+        bossBarManager = new BossBarManager(this, preferenceManager, scheduler);
         
         // NOWE: Manager od cyklicznych BossBarów z bossbar.yml
-        globalBossBarManager = new GlobalBossBarManager(this, preferenceManager);
+        globalBossBarManager = new GlobalBossBarManager(this, preferenceManager, scheduler);
         globalBossBarManager.start();
 
-        eventScheduler = new EventScheduler(this, configManager, bossBarManager, preferenceManager);
+        eventScheduler = new EventScheduler(this, configManager, bossBarManager, preferenceManager, scheduler);
 
         Bukkit.getPluginManager().registerEvents(bossBarManager, this);
 
@@ -39,7 +41,7 @@ public class EventAnnouncer extends JavaPlugin {
             getLogger().info("PlaceholderAPI expansion registered.");
         }
 
-        getLogger().info("EventAnnouncer enabled!");
+        getLogger().info("EventAnnouncer enabled! Scheduler: " + (scheduler.isFolia() ? "Folia" : "Bukkit"));
     }
 
     @Override
