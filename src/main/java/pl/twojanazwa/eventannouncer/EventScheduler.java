@@ -9,8 +9,6 @@ import java.time.LocalTime;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class EventScheduler {
     private final EventAnnouncer plugin;
@@ -18,13 +16,13 @@ public class EventScheduler {
     private final BossBarManager bossBarManager;
     private final PreferenceManager preferenceManager;
     private final ServerScheduler scheduler;
+    private final ExecutionStateManager stateManager;
     private ServerScheduler.TaskHandle mainTask;
-    
-    private final Set<String> todaysAnnounced = ConcurrentHashMap.newKeySet();
-    private final Set<String> todaysCommandsExecuted = ConcurrentHashMap.newKeySet(); // Rejestr wykonanych komend
+
+    // Trwały rejestr wysłanych ogłoszeń / wykonanych komend (przeżywa restart serwera)
     private volatile List<ScheduledEvent> todaysEvents = List.of();
     private volatile LocalDate lastCheckedDate = null;
-    
+
     // Cache dla uniknięcia tworzenia obiektów
     private final List<ScheduledEvent> upcomingEventsCache = new ArrayList<>();
 
@@ -34,6 +32,7 @@ public class EventScheduler {
         this.bossBarManager = bossBarManager;
         this.preferenceManager = preferenceManager;
         this.scheduler = scheduler;
+        this.stateManager = new ExecutionStateManager(plugin, scheduler);
     }
 
     public void run() {
@@ -55,8 +54,7 @@ public class EventScheduler {
         if (lastCheckedDate == null || !lastCheckedDate.equals(today)) {
             lastCheckedDate = today;
             updateTodaysEvents(today);
-            todaysAnnounced.clear();
-            todaysCommandsExecuted.clear(); // Reset na nowy dzień
+            stateManager.ensureDate(today); // Reset rejestru na nowy dzień
         }
 
         if (currentTime.isBefore(configManager.getAnnouncementStartTime())) {
@@ -106,6 +104,7 @@ public class EventScheduler {
     }
 
     private void checkAndSendAnnouncements(ZonedDateTime now, List<ScheduledEvent> events) {
+        LocalDate today = now.toLocalDate();
         for (int i = 0; i < events.size(); i++) {
             ScheduledEvent event = events.get(i);
             ZonedDateTime eventTime = now.toLocalDate().atTime(event.time()).atZone(configManager.getTimeZone());
@@ -117,7 +116,7 @@ public class EventScheduler {
                 String announcementId = event.id() + "@" + announcement.timeBefore().toString();
 
                 // Sprawdzamy czy czas nadszedł i zamykamy okienko w ciągu 2 minut by uniknąć spamu po restarcie serwera
-                if (!now.isBefore(announcementTime) && now.isBefore(announcementTime.plusMinutes(2)) && todaysAnnounced.add(announcementId)) {
+                if (!now.isBefore(announcementTime) && now.isBefore(announcementTime.plusMinutes(2)) && stateManager.markAnnounced(today, announcementId)) {
                     String formattedMessage = event.getFormattedText(announcement.message());
                     
                     for (Player player : Bukkit.getOnlinePlayers()) {
@@ -133,17 +132,19 @@ public class EventScheduler {
     }
 
     private void checkAndExecuteCommands(ZonedDateTime now, List<ScheduledEvent> events) {
+        LocalDate today = now.toLocalDate();
         for (int i = 0; i < events.size(); i++) {
             ScheduledEvent event = events.get(i);
             ZonedDateTime eventTime = now.toLocalDate().atTime(event.time()).atZone(configManager.getTimeZone());
 
             // Komendy wykonują się w momencie "0" (lub do 2 minut w przypadku chwilowego zawieszenia serwera)
             if (!now.isBefore(eventTime) && now.isBefore(eventTime.plusMinutes(2))) {
-                if (todaysCommandsExecuted.add(event.id())) {
+                if (stateManager.markCommand(today, event.id())) {
                     List<String> commands = event.commands();
                     if (commands != null && !commands.isEmpty()) {
                         for (String command : commands) {
-                            String formattedCommand = event.getFormattedText(command);
+                            // Komend NIE kolorujemy (&->§) – psułoby to argumenty zawierające '&'
+                            String formattedCommand = event.getFormattedRaw(command);
                             // Usunięcie slashy na początku, jeżeli użytkownik je omyłkowo dopisze
                             if (formattedCommand.startsWith("/")) {
                                 formattedCommand = formattedCommand.substring(1);

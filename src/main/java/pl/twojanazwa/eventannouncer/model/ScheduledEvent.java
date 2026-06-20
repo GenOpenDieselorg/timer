@@ -45,9 +45,14 @@ public record ScheduledEvent(
     }
 
     public String getFormattedText(String text) {
+        return getFormattedRaw(text)
+            .replace('&', '§');
+    }
+
+    /** Podstawia placeholdery, ale NIE tłumaczy kolorów (&->§). Używane dla komend. */
+    public String getFormattedRaw(String text) {
         return text
             .replace("{eventName}", displayName)
-            .replace("{time}", time.toString())
-            .replace('&', '§');
+            .replace("{time}", time.toString());
     }
 }
