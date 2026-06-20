@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -46,7 +45,11 @@ public class ConfigManager {
         ConfigurationSection eventsSection = config.getConfigurationSection("events");
         if (eventsSection == null) return;
         for (String key : eventsSection.getKeys(false)) {
-            parseAndCreateEvent(key, eventsSection.getConfigurationSection(key));
+            try {
+                parseAndCreateEvent(key, eventsSection.getConfigurationSection(key));
+            } catch (Exception e) {
+                plugin.getLogger().warning("Pominięto wydarzenie '" + key + "' z powodu błędu konfiguracji: " + e.getMessage());
+            }
         }
     }
     
@@ -96,10 +99,23 @@ public class ConfigManager {
     }
     
     private Duration parseDuration(String timeStr) {
-        String[] parts = timeStr.split(" ");
+        String[] parts = timeStr.trim().split("\\s+");
+        if (parts.length < 2) {
+            throw new IllegalArgumentException("Nieprawidłowy format czasu: '" + timeStr + "' (oczekiwano np. '1 hours', '30 minutes')");
+        }
         long amount = Long.parseLong(parts[0]);
-        TimeUnit unit = TimeUnit.valueOf(parts[1].toUpperCase());
-        return Duration.of(amount, unit.toChronoUnit());
+        // Akceptujemy liczbę pojedynczą i mnogą: hour/hours, minute/minutes itd.
+        String unit = parts[1].toLowerCase();
+        if (unit.endsWith("s")) {
+            unit = unit.substring(0, unit.length() - 1);
+        }
+        return switch (unit) {
+            case "second" -> Duration.ofSeconds(amount);
+            case "minute" -> Duration.ofMinutes(amount);
+            case "hour" -> Duration.ofHours(amount);
+            case "day" -> Duration.ofDays(amount);
+            default -> throw new IllegalArgumentException("Nieznana jednostka czasu: '" + parts[1] + "' (użyj seconds/minutes/hours/days)");
+        };
     }
 
     private ScheduledEvent.Announcement parseAnnouncement(String line) {

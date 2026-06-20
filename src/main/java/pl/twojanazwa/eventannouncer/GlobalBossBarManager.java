@@ -38,7 +38,7 @@ public class GlobalBossBarManager implements Listener {
     
     private ServerScheduler.TaskHandle task;
     private int currentTimer = 0;
-    private int currentIndex = 0;
+    private int currentIndex = -1; // -1 => pierwszy pokazany bar to indeks 0
     private boolean isShowing = false;
     
     private final Set<UUID> playersInBar = ConcurrentHashMap.newKeySet();
@@ -108,7 +108,8 @@ public class GlobalBossBarManager implements Listener {
         playersInBar.clear();
         isShowing = false;
         currentTimer = 0;
-        
+        currentIndex = -1;
+
         // Wyrejestruj listener
         HandlerList.unregisterAll(this);
     }
@@ -146,15 +147,15 @@ public class GlobalBossBarManager implements Listener {
         activeBossBar.setProgress(1.0);
         activeBossBar.setVisible(true);
 
+        // Operacje na bossbarze trzymamy na global region thread (ten tick już tam działa) –
+        // bez tego lista graczy bossbara byłaby modyfikowana z wielu wątków na Folii.
         playersInBar.clear();
         for (Player player : Bukkit.getOnlinePlayers()) {
-            scheduler.runForPlayer(player, () -> {
-                UUID uuid = player.getUniqueId();
-                if (preferenceManager.hasAnnouncementsEnabled(uuid) && activeBossBar != null) {
-                    activeBossBar.addPlayer(player);
-                    playersInBar.add(uuid);
-                }
-            });
+            UUID uuid = player.getUniqueId();
+            if (preferenceManager.hasAnnouncementsEnabled(uuid) && activeBossBar != null) {
+                activeBossBar.addPlayer(player);
+                playersInBar.add(uuid);
+            }
         }
 
         isShowing = true;
@@ -188,9 +189,10 @@ public class GlobalBossBarManager implements Listener {
     public void onJoin(PlayerJoinEvent event) {
         if (isShowing && activeBossBar != null) {
             Player player = event.getPlayer();
-            scheduler.runForPlayer(player, () -> {
+            scheduler.runGlobal(() -> {
                 UUID uuid = player.getUniqueId();
-                if (preferenceManager.hasAnnouncementsEnabled(uuid) && activeBossBar != null) {
+                if (isShowing && activeBossBar != null && player.isOnline()
+                        && preferenceManager.hasAnnouncementsEnabled(uuid)) {
                     activeBossBar.addPlayer(player);
                     playersInBar.add(uuid);
                 }
@@ -204,7 +206,7 @@ public class GlobalBossBarManager implements Listener {
         playersInBar.remove(uuid);
         if (activeBossBar != null) {
             Player player = event.getPlayer();
-            scheduler.runForPlayer(player, () -> {
+            scheduler.runGlobal(() -> {
                 if (activeBossBar != null) {
                     activeBossBar.removePlayer(player);
                 }
